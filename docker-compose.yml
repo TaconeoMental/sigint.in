@@ -1,0 +1,22 @@
+version: "3.7"
+
+services:
+  caddy:
+    image: caddy:2.6.4
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - $PWD/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - $PWD/srv/public:/srv
+      - caddy_data:/data
+      - caddy_config:/config
+
+
+volumes:
+  caddy_data:
+    external: true
+    name: sigint.in_caddy_data
+  caddy_config:
+    external: true
+    name: sigint.in_caddy_config
