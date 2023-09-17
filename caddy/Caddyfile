@@ -3,7 +3,7 @@ sigint.in {
                 Server "sigint.in"
                 Strict-Transport-Security "max-age=31536000; includeSubdomains; preload;"
                 Referrer-Policy "no-referrer-when-downgrade"
-                Content-Security-Policy: "base-uri 'self'; default-src 'self';"
+                Content-Security-Policy: "base-uri 'self'; default-src 'self' 'unsafe-inline';"
         }
         encode zstd gzip
         root * /srv/
