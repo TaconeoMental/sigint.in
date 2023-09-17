@@ -1,12 +1,12 @@
 sigint.in {
         header {
-				Server "sigint.in"
+                Server "sigint.in"
                 Strict-Transport-Security "max-age=31536000; includeSubdomains; preload;"
-				Referrer-Policy "no-referrer-when-downgrade"
-				Content-Security-Policy: "base-uri 'self'; default-src 'self';"
+                Referrer-Policy "no-referrer-when-downgrade"
+                Content-Security-Policy: "base-uri 'self'; default-src 'self';"
         }
         encode zstd gzip
         root * /srv/
-		templates
+        templates
         file_server
 }
