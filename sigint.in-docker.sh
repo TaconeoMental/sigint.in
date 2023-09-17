@@ -4,8 +4,8 @@ VOLUMES=("sigint.in_caddy_config" "sigint.in_caddy_data")
 DOCKERCOMPOSE="docker compose --file docker-compose.yml"
 
 function create_volumes() {
-	for volume in "${VOLUMES[@]}"
-	do
+    for volume in "${VOLUMES[@]}"
+    do
         echo -n "[*] Volume '$volume' "
         # "--format json" is just to remove the table header the default template shows :P
         vol_info=$(docker volume ls -f name=$volume --format json | awk '{print $NF}')
@@ -16,7 +16,7 @@ function create_volumes() {
             echo "does not exist. Creating..."
             docker volume create $volume
         fi
-	done
+    done
 }
 
 function sigint_init() {
@@ -66,6 +66,3 @@ case $1 in
 esac
 
 exit 0
-
-create_volumes
-
