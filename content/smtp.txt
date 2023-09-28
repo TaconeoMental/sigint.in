@@ -1,0 +1,401 @@
+                                __________________________       
+                               |\ From: neo        .__.  /|      
+                               | \ To: sigint.in   |  | / |      
+                               |  \  ._-..         '""'/  |      
+                               |  /\__________________/\  |      
+                               | /                      \ |      
+                               |/               -.,-_    \|      
+                               |__________________________|      
+                                                                
+                            .--[ SMTP: Qué, cómo y cuándo ]--.  
+
+El protocolo SMTP saluda al mundo en noviembre del año 1982 con piñatas y confetti, en la forma de
+un RFC titulado "Simple Mail Transfer Protocol" (Protocolo Simple de Transferencia de Correos)[0].
+Como su título lo indica, este documento detalla minuciosamente la implementación de un protocolo de
+comunicación que pronto formaría parte del día a día de miles de personas, transformándose en un
+pilar fundamental del internet que hoy conocemos. 
+
+La estructura fundamental del protocolo es relativamente sencilla. Existen las siguientes partes en
+juego:
+
+\- Usuario: Quien quiere enviar el correo
+\- Cliente SMTP
+\- Servidor SMTP
+
+                  +----------+                +----------+
+      +------+    |          |                |          |
+      | User |<-->|          |      SMTP      |          |
+      +------+    |  Client- |Commands/Replies|  Server- |
+      +------+    |   SMTP   |<-------------->|   SMTP   |    +------+
+      | File |<-->|          |    and Mail    |          |<-->| File |
+      |System|    |          |                |          |    |System|
+      +------+    +----------+                +----------+    +------+
+                   SMTP client                SMTP server
+                              Fuente: RFC5321
+
+En donde el usuario inicializa un envío a través del cliente SMTP, quien establece un canal de
+comunicación con el servidor SMTP. A través de este túnel, el cliente envía comandos -especificando
+los detalles del correo- y el servidor responde con códigos de estado a cada uno de estos. Uno de
+estos intercambios se podría ver algo así:
+
+C = Cliente
+S = Servidor
+
+    S: 220 sigint.in Simple Mail Transfer Service Ready                  
+    C: EHLO demon.cl                                                     
+    S: 250-sigint.in greets demon.cl                                     
+    C: MAIL FROM:<miku@demon.cl>                                        
+    S: 250 OK                                                            
+    C: RCPT TO:<neo@kirby.cl>                                          
+    S: 250 OK                                                            
+    C: DATA                                                              
+    S: 354 Start mail input; end with <CRLF>.<CRLF>                      
+    C: From: Miku <miku@demon.cl>                                       
+    C: Subject: Importante.                                              
+    C: To: Neo <neo@kirby.cl>                                          
+    C:
+    C: Querido Neo:                                            
+    C: Olvidé cuándo tenía que enviarte el correo falso para el blog.    
+    C: Quedo atento.                                                     
+    C:
+    C: - Miku
+    C: .                                                                 
+    S: 250 OK                                                            
+    C: QUIT                                                              
+    S: 221 sigint.in Service closing transmission channel                
+
+En otras palabras:
+
+     ____________________________________________________________________________________
+    /                                                                                    \
+    |    .------------------------------------------------------.                        |
+    |   ( Hola, soy sigint.in. Estoy listo para recibir comandos )                       |
+    |    '---------------------------------------------.--------'-------------------.    |
+    |                                                 ( Hola sigint.in, soy demon.cl )   | 
+    |    .-------------.                               '----------------------------'    |
+    |   ( Hola demon.cl )                                                                |
+    |    '------------.'------------------------------------------------------------.    |
+    |                 ( El usuario que va a *transmitir* el mensaje es miku@demon.cl )   |
+    |    .---.         '------------------------------------------------------------'    |
+    |   ( Oki )                                                                          |
+    |    '---'    .-----------------------------------------------------------------.    |
+    |            ( El usuario que recibe el mensaje y las respuestas es neo@kirby.cl )   |
+    |    ,---.    '-----------------------------------------------------------------'    |
+    |   ( Oki )                                                                          |
+    |    '---'                         .--------------------------------------------.    |
+    |                                 ( Ahora te voy a pasar el contenido del correo )   |
+    |    .------------------ ----.     '--------------------------------------------'    |
+    |   ( Dele nomás, usted avisa )                                                      |
+    |    '----.------------------'--------------------------------------------------.    |
+    |        /       El usuario que va a componer el mensaje es Miku (miku@demon.cl) \   |
+    |        |                                                 Asunto: "Importante." |   |
+    |        |   Que el receptor vea que el mensaje va dirigido a Neo (neo@kirby.cl) |   |
+    |        |                                          Mensaje: "Querido Neo:..."   |   |
+    |        \                                                                 Listo /   |
+    |    .----'.--------------------------------------------------------------------'    |
+    |   ( Ok ok )                                                                        |
+    |    '-----'                                                    .---------------.    |
+    |                                                              ( Ok chao besitos )   |
+    |    .----------.                                               '---------------'    |
+    |   ( Chaooo uwu )                                                                   |
+    |    '----------'                                                                    |
+    \____________________________________________________________________________________/
+              Chat entre nosotros (demon.cl) y el servidor de correo (sigint.in)
+
+
+Esto dejaría un mensaje a nombre de miku@demon.cl en la cola para neo@kirby.cl.
+
+
+Muy bonito todo, pero un poco preocupante en realidad. Como mencioné antes, SMTP es el protocolo que
+se usa actualmente (2023) para el envío de correos. Un poco extraño, considerando que
+fundamentalmente sigue siendo igual y que SE CREÓ HACE MÁS DE 40 AÑOS. Así es amigos y amigas, uno
+de los protocolos que sostiene gran parte de la comunicación moderna está construido sobre cimientos
+desactualizados, vulnerables y definitivamente no diseñados para el internet del siglo XXI.
+Analicemos cómo funciona con más detalle y busquemos los problemas de diseño inherentes que viene
+arrastrando desde hace más de cuatro décadas.
+
+
+                                    .--[ ¿Integridad? ]--.
+
+Dado el contexto en el que nació SMTP, el diseño original no contempla ningún mecansismo para
+asegurar la integridad del mensaje o para establecer si el remitente de este es genuino realmente.
+Para entender esto, veamos cómo es que se transporta la información enviada.
+
+SMTP transporta estructuras llamadas "Objetos de correo", compuestass por dos partes: un sobre y
+contenido. El sobre se configura a través de una serie de transacciones una vez que se inicia la
+conexión, mientras que el contenido se especifica utilizando el comando DATA. En el ejemplo de la
+parte anterior, el objeto de correo habría quedado algo así:
+
+  .-----------------------------.
+  | EHLO demon.cl               |
+  | MAIL FROM: <miku@demon.cl>  |      <- Sobre SMTP
+  | RCPT TO: <neo@kirby.cl>     |
+  |   . ----------------------------.
+  |   | FROM: Miku <miku@demon.cl>  |
+  '---| TO: Neo <neo@kirby.cl>      |  <- Cabecera del contenido
+      | SUBJECT: Importante.        |
+      !-----------------------------!
+      | Querido Neo:...             |  <- Cuerpo del contenido
+      '-----------------------------'
+
+Si se fijan bien, hay algunos valores que parecen ser redundantes: MAIL FROM/FROM y RCPT TO/TO. Sin
+embargo, son solo los primeros -aquellos presentes en el sobre- los que realmente importan para el
+enrutamiento del mensaje. FROM y TO sirven unicamente como feedback visual para el usuario y son los
+valores que se muestran en los campos "From" y "To" ("De" y "Para" in spanish). Esto significa
+que no existe ningún mecanismo que nos obligue a homologar los valores del sobre y el contenido, por
+lo que es posible ingresar datos arbitrarios y enviar correos a nombre de otros usuarios y dominios.
+
+Para demostrar esto, levanté un servidor SMTP en uno de los servidores de sigint.in con python
+(pueden hacer esto localmente pero me gusta complicar todo):
+
+    $ python3 -m smtpd -n -c DebuggingServer 0.0.0.0:1337
+
+Luego, me conecté usando telnet y envié un correo tal y como describí en la parte anterior. Sin
+embargo, reemplacé los valores de "MAIL FROM" y "FROM" por "sigint.in@cloudflare.com". Esta
+dirección de correo no existe y es solo para demostrar que el protocolo no valida estos campos de
+ninguna forma.
+
+    $ telnet sigint.in 1337
+    Trying xx.xxx.xx.xx...
+    Connected to sigint.in.
+    Escape character is '^]'.
+    220 localhost Python SMTP proxy version 0.3
+    EHLO elmejorblogdelmundo
+    250-localhost
+    250-8BITMIME
+    250 HELP
+    MAIL FROM:<sigint.in@cloudflare.com>
+    250 OK
+    RCPT TO:<neo@sigint.in>
+    250 OK
+    DATA
+    354 End data with <CR><LF>.<CR><LF>
+    To: neo@sigint.in
+    From: sigint.in@cloudflare.com
+    Subject: ¿Integridad?
+
+    Creo que no :)
+    .
+    250 OK
+    QUIT
+    221 Bye
+    Connection closed by foreign host.
+
+Volviendo al servidor SMTP, nos damos cuenta de que el correo llegó exitosamente, junto con el
+remitente falso.
+
+    $ python3 -m smtpd -n -c DebuggingServer 0.0.0.0:1337
+    ---------- MESSAGE FOLLOWS ----------
+    b'To: neo@sigint.in'
+    b'From: sigint.in@cloudflare.com'
+    b'Subject: \xc2\xbfIntegridad?'
+    b'X-Peer: xxx.xxx.xxx.xxx'
+    b''
+    b'Creo que no :)'
+    ------------ END MESSAGE ------------
+
+Los dejo invitados a recrear este experimento y estudiar como se comportan los distintos comandos
+del protocolo, junto con las cabeceras que producen posteriormente.
+
+
+                            .--[ SMTP: Electric Boogaloo ]--.
+
+Las décadas han pasado y ahora facebook y los minions son tendencia. Así es, el año es 2023 y SMTP
+lo sabe. Han habido muchas revisiones al protocolo en el último tiempo (ya vamos en RFC5321!) y está
+cada vez más preparado para los tiempos modernos. Aquí algunos de los nuevos personajes:
+
+\- MUA (Mail User Agent)
+| \ Mejor conocido como cliente de correo (Gmail, Thunderbird, Outlook, etc.)
+|
+\- MTA (Mail Transfer Agent)
+| \ También llamado servidor de correo (Microsoft Exchange, Postfix, Sendmail, etc.)
+|
+\- MDA (Mail Delivery Agent)
+| \ Usado por los agentes MTA para entregar el correo al buzón de un usuario
+|  \ concreto.
+|
+\- Muchos más irrelevantes para lo que estamos viendo
+
+Simplificando mucho la realidad del proceso, aquí un pequeño diagrama que ejemplifica el rol de cada
+uno de estos nuevos actores:
+
+                                        kirby.cl ,-MX-> demon.cl
+                                     .----------/.   .-----------.
+                                     |         / |   |           |
+                   .-----.     SMTP  |  .----./  SMTP|  .-----.  |
+          (>'-')>  | MUA |-----------~->| MTA |-------->| MTA |  |
+      kirby@kirby.cl-----'           |  '--.--'  |(2)|  '--.--'  |
+                                     |     |     |   |     |     |
+                                     |     | (1) |   | (3) |     |
+                                     |     |     |   |     |     |
+                                     |     v     |   |     v     |
+                   .-----.   IMAP/POP|  .-----.  |   |  .-----.  |IMAP/POP   .-----. 
+          (>'-')>  | MUA |<----------~--| MDA |  |   |  | MDA |--~---------->| MUA |  <('-'<)
+        neo@kirby.cl-----'           |  '-----'  |   |  '-----'  |           '-----miku@demon.cl
+                                     '-----------'   '-----------'
+
+En primer lugar, el usuario kirby en kirby.cl quiere enviarle correos electrónicos a sus queridos
+amigos. Por un lado está neo, quien también está en kirby.cl, y por otro está miku, presente en
+demon.cl. Ya que el mensaje es el mismo para ambos, kirby lo redactará a través de su MUA,
+especificando a sus dos amigos en la cabecera "RCPT TO". Los comandos que enviará se verán algo así:
+
+    HELO kirby.local
+    MAIL FROM:<kirby@kirby.cl>
+    RCPT TO:"Neo" <neo@kirby.cl>, "Miku" <miku@demon.cl>
+    DATA
+    From: <kirby@kirby.cl>
+    To:"Neo" <neo@kirby.cl>, "Miku" <miku@demon.cl>
+    Subject: Mensaje de amor
+
+    Los tkm
+    .
+    QUIT
+
+Acá, el MUA de kirby@kirby.cl (Thunderbird porque apoya el software libre) enviará los comandos de
+arriba al MTA de kirby.cl, smtp.kirby.cl en este caso. Este MTA tomará 2 caminos distintos, uno para
+cada usuario:
+
+Para neo@kirby.cl, se dará cuenta de que el usuario se encuentra en el mismo dominio, por lo que
+encolará el mensaje en el MDA de kirby.cl (1), desde donde neo@kirby.cl recojerá el mensaje para
+visualizarlo a través de su MUA y recibir todo el amor de su amigo. Por otro lado, el MTA se dará
+cuenta de que miku se encuentra en otro dominio (demon.cl), por lo que el camino será un poco más
+largo:
+
+    0. Hará una consulta DNS a los registros MX de demon.cl para identificar el MTA
+       correspondiente
+    1. Enrutará el mensaje hacia ese MTA a través de SMTP (2)
+    2. Eso era todo. No era tan largo en realidad
+
+Luego el principio es el mismo. El MTA de demon.cl se dará cuenta de que el mensaje va dirigido
+hacia un usuario de su dominio, por lo que se lo entregará al MDA (3) para que miku@demon.cl lo
+pueda recuperar y visualizar con su MUA de preferencia.
+
+Muy bonito, un aplauso. Me imagino que ya no es posible suplantar identidades y enviar correos con
+emisores arbitrarios como en la parte anterior, ¿correcto? Si y no, es complejo. A estas alturas, la
+adopción del protocolo se ha vuelto tan inmensa que reemplazarlo lamentablemente ya no es una opción
+viable. Las soluciones más adoptadas se basan en "parches" que construyen nuevas medidas de
+seguridad al rededor del ya existente estándar. Veamos cada una de ellas con detalle.
+
+
+                         ___________  
+                        |.---------.|
+                        ||SIGINT.IN||      .-----------------------.
+                        ||         ||      | SIGINT.IN <>  Nv.7208 |
+                        |'---------'|      |      <PS(######    )> |
+                         `)__ ____('       |               235/240 |
+                         [=== -- o ]       '-----------------------'
+                    *========================*.----------.----------.
+                    ||                      ||    SPF    |   DKIM   |
+                    || ¿Qué hará SIGINT.IN? ||+----------+----------+
+                    ||                      ||   DMARC   |  LLORAR  |
+                    *========================*'----------'----------'
+
+                        .--[ SPF: Restricción de origen ]--.
+
+El año es 2014 y luego de 8 años de deliberación y debate, SPF (Sender Policy Framework) es
+finalmente formalizado como estándar de internet en el RFC7208. SPF es el primero de muchos
+contrincantes que nacen para luchar en contra de la falta de autenticación intrínseca de SMTP.
+
+El funcionamiento de SPF es relativamente simple:
+
+    0. El dueño de un dominio publica la política SPF en un registro TXT de DNS. Este especifica qué
+    direcciones IP tienen autorizado enviar correo a nombre del dominio.
+
+    1. Cuando un MTA recibe un correo, este toma el dominio utilizado en la cabecera "MAIL FROM" y hace
+    una consulta DNS para obtener su política SPF previamente definida en el registro TXT.
+
+    2. El MTA receptor verifica si la dirección IP del MTA emisor del correo está en la lista que
+    especifica la política SPF, esto es, si está autorizada para enviar correos a nombre del dominio.
+
+    3. Esta evaluación puede tener varios resultados, pero en general indica si el correo viene de un
+    servidor legítimo o no.
+
+    .~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.
+    (  '.  _  .'      ¿Sabías que SPF originalmente significaba "Sender Permitted From" (Emisor       )
+    ( -=  (~)  =-     Permitido Desde)? Según yo, este nombre es mucho más obvio y claro que el       )
+    (  .'  #  '.      críptico "Registro de Marco de Políticas del Remitente".                        )
+    '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+
+Ahora veamos cuáles son las partes que componen a un registro SPF y cómo funcionan.
+
+==[ Mecanismos
+Los mecansimos en los registros SPF definen "identidades" dentro de la política. Estas identidades
+pueden hacer referencia a direcciónes IPv4/IPv6, registros DNS del dominio, registros SPF de otros
+dominios, entre otras cosas. Los mecanismos definidos en el RFC7208 son:
+
+
++---\- a
+    |  \ Coincide si el dominio tiene registros A/AAAA que coinciden con la dirección IP del emisor. También
+    |   \ es posible especificar un dominio distinto, de forma que se utilicen sus registros A/AAAA para la
+    |    \ validación y no los del dominio actual. Ej: a:smtp.sigint.in va a coincidir si la dirección IP del
+    |     \ emisor se encuentra en los registros A o AAAA de smtp.sigint.in.                                 )
+    |      '-------------------------------------------------------------------------------------------------'
+    \- mx
+    |  \Coincide si la dirección IP del emisor corresponde a uno de los servidores de correo del dominio
+    |   \ especificados en los registros MX. También es posible especificar un dominio disitinto para que se
+    |    \ consulten sus registros MX.                                                                       )
+    |     '--------------------------------------------------------------------------------------------------'
+    |
+    \- ip4/ip6
+    |  \ Coincide si la dirección IP del emisor se encuentra dentro del segmento especificado por el
+    |   \ mecanismo. Ej: ip4:13.37.133.7/24, ip6:fd1b:212c:a5f9::/48                                         )
+    |    '---------------------------------------------------------------------------------------------------'
+    |
+    \- exists
+       \ Coincide si el dominio especificado tiene un registro A. Ej: exists:kirby.sigint.in.                )
+        '----------------------------------------------------------------------------------------------------'
+
+all
+include
+
+
+==[ Calificadores
+
+==[ Modificadores
+
+
+- Contexto histórico y qué hace
+- Cómo se ve, dónde está (registros TXT, cómo buscarla con dig, etc.)
+- Descripción detallada (Explicar PASS, FAIL, SOFTFAIL, mecanismos, calificadores)
+- Ejemplos reales (stats bla bla)
+- Por qué no es suficiente
+- Cómo reacciona cada MUA a la política
+
+                       .--[ DKIM: Firma digital ]--.
+- Contexto histórico y qué hace
+- Cómo se ve, dónde está (registros TXT, cómo buscarla con dig, etc.)
+- Descripción detallada (Explicar selectores, mostrar que cabeceras se firman)
+- Ejemplos reales
+- Por qué no es suficiente
+- Cómo reacciona cada MUA a la política
+
+                       .--[ DMARC: Uniendo todo ]--.
+- Contexto histórico y qué hace
+- Cómo se ve, dónde está (registros TXT, cómo buscarla con dig, etc.)
+- Descripción detallada (Explicar las políticas none, reject, quarintine)
+- Ejemplos reales (stats)
+- Por qué es suficiente (la mayoría de las veces)
+- Cómo reacciona cada MUA a la política
+
+                       .--[ Atacando dominios: parte 1 ]--.
+- Recon de registros DNS
+- Análisis de SPF
+- Análisis de DMARC
+- Explicación detallada del problema
+- Ejemplos reales
+
+                       .--[ Atacando dominios: parte 2 ]--.
+- Todos los registros están bien, ahora qué
+- Análisis de DKIM y reutilización de firmas
+- Email forwarders
+- Discrepancias visuales en distintos MUAs
+- Ejemplos reales
+
+                       .--[ ¿Qué podemos hacer? ]--.
+- Por qué está todo así
+- Concientización
+- Ideas??
+- Recomendaciones generales
+
+[ Referencias ]
+:)
