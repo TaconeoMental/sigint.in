@@ -277,18 +277,27 @@ viable. Las soluciones más adoptadas se basan en "parches" que construyen nueva
 seguridad al rededor del ya existente estándar. Veamos cada una de ellas con detalle.
 
 
-                         ___________  
-                        |.---------.|
-                        ||SIGINT.IN||      .-----------------------.
-                        ||         ||      | SIGINT.IN <>  Nv.7208 |
-                        |'---------'|      |      <PS(######    )> |
-                         `)__ ____('       |               235/240 |
-                         [=== -- o ]       '-----------------------'
-                    *========================*.----------.----------.
-                    ||                      ||    SPF    |   DKIM   |
-                    || ¿Qué hará SIGINT.IN? ||+----------+----------+
-                    ||                      ||   DMARC   |  LLORAR  |
-                    *========================*'----------'----------'
+
+                                                          /\           /\
+                                                      .---------------------.
+                                                    ~~|  Yo entero malulo   |~~
+                                                      | escribiendo un blog |
+                                                      '---------------------'
+                                                         _/             \_
+                       ___________
+                      |.---------.|
+                      ||SIGINT.IN||
+                      ||         ||
+                      |'---------'|
+                       `)__ ____('
+                       [=== -- o ]
+                    *========================*.-----------.-----------.
+                    ||                      ||  1. SPF    | 2. DKIM   |
+                    || ¿Qué hará SIGINT.IN? ||+-----------+-----------+
+                    ||                      ||  3. DMARC  | 4. LLORAR |
+                    *========================*'-----------'-----------'
+
+
 
                         .--[ SPF: Restricción de origen ]--.
 
@@ -298,7 +307,7 @@ contrincantes que nacen para luchar en contra de la falta de autenticación intr
 
 El funcionamiento de SPF es relativamente simple:
 
-    0. El dueño de un dominio publica la política SPF en un registro TXT de DNS. Este especifica qué
+    0. El dueño de un dominio publica la política SPF en un registro TXT. Este especifica qué
     direcciones IP tienen autorizado enviar correo a nombre del dominio.
 
     1. Cuando un MTA recibe un correo, este toma el dominio utilizado en la cabecera "MAIL FROM" y hace
@@ -323,15 +332,28 @@ Los mecansimos en los registros SPF definen "identidades" dentro de la política
 pueden hacer referencia a direcciónes IPv4/IPv6, registros DNS del dominio, registros SPF de otros
 dominios, entre otras cosas. Los mecanismos definidos en el RFC7208 son:
 
+.
+| Mecanismos Básicos
+\---+- all
+    |  \ Hace match a cualquier dirección IP.                                                                )
+    |   '----------------------------------------------------------------------------------------------------'
+    |
+    \- include
+       \ Hace match si la evaluación del registro SPF al que hace referencia resulta en un PASS (es mucho
+        \ más complejo pero todo a su tiempo).                                                               )
+         '---------------------------------------------------------------------------------------------------'
 
-+---\- a
-    |  \ Coincide si el dominio tiene registros A/AAAA que coinciden con la dirección IP del emisor. También
-    |   \ es posible especificar un dominio distinto, de forma que se utilicen sus registros A/AAAA para la
-    |    \ validación y no los del dominio actual. Ej: a:smtp.sigint.in va a coincidir si la dirección IP del
-    |     \ emisor se encuentra en los registros A o AAAA de smtp.sigint.in.                                 )
+.
+| Mecanismos de Emisor Designado
+\---.- a
+    |  | a[:DOMINIO]
+    |  \ Hace match si el dominio tiene registros A/AAAA que coinciden con la dirección IP del emisor.
+    |   \ También es posible especificar un dominio distinto, de forma que se utilicen sus registros A/AAAA
+    |    \ para la validación y no los del dominio actual. Ej: a:smtp.sigint.in va a coincidir si la
+    |     \ dirección IP del emisor se encuentra en los registros A o AAAA de smtp.sigint.in.                )
     |      '-------------------------------------------------------------------------------------------------'
     \- mx
-    |  \Coincide si la dirección IP del emisor corresponde a uno de los servidores de correo del dominio
+    |  \ Hace match si la dirección IP del emisor corresponde a uno de los servidores de correo del dominio
     |   \ especificados en los registros MX. También es posible especificar un dominio disitinto para que se
     |    \ consulten sus registros MX.                                                                       )
     |     '--------------------------------------------------------------------------------------------------'
@@ -345,13 +367,90 @@ dominios, entre otras cosas. Los mecanismos definidos en el RFC7208 son:
        \ Coincide si el dominio especificado tiene un registro A. Ej: exists:kirby.sigint.in.                )
         '----------------------------------------------------------------------------------------------------'
 
-all
-include
-
-
 ==[ Calificadores
+Los calificadores indican el resultado que tiene la evaluación de un mecanismo. Los calificadores
+definidos son los siguientes:
+
+  .---.----------+
+  | + | PASS     | La dirección IP del emisor está autorizada para enviar correos a nombre del dominio
+  | - | FAIL     | La dirección IP del emisor NO está autorizada para enviar correos a nombre del dominio
+  | ~ | SOFTFAIL | El dueño del dominio se amarilló y no dice que PASS pero tampoco que FAIL
+  | ? | NEUTRAL  | Una cosa media rara entre - y ~. Hay muchas interepretaciones distintas por los MTA
+  '---'----------+
 
 ==[ Modificadores
+TODO imagina saber lo que es un modificador
+
+==[ El registro en sí
+La sintaxis del registro SPF está definida formalmente en el RFC [HOLA], pero nadie sabe leer
+gramáticas libres de contexto así que quédense con este regex de sintaxis inventada:
+
+
+    "v=spf1 ((CALIFICADOR)?MECANISMO(:VALOR)?)*"
+     ~~~.~~   ~~~~~.~~~~~  ~~~~.~~~~  ~~.~~
+        |          |           |        '--------> Depende del mecanismo. Puede ser un dominio, bloques CIDR, etc.
+        |          |           '-----------------> Un mecanismo jaja. A, MX, IP4, IP6, ...
+        |          '-----------------------------> +-~?. Es opcional, si no se especifica se asume un "+" implícito.
+        '----------------------------------------> Omaigat esto es nuevo. Es la versión. Siempre debe ser spf1.
+
+
+Para entenderlo mejor, desglosemos los registros SPF de dominios reales. Para esto podemos utilizar
+dig, especificando el registro TXT y +short para que no muestre tanta tontera.
+
+Los mecanismos se evaluan uno por uno, de izquierda a derecha, hasta el primero que haga match. Por
+lo mismo, iremos paso por paso simulando lo que haría un MTA real al evaluar el registro contra una
+dirección IP.
+
+    $ dig +short txt fruna.cl
+    "v=spf1 mx ip4:201.148.106.125 ~all"
+
+Ya que existen calificadores implícitos, el registro es equivalente a:
+
+    "v=spf1 +mx +ip4:201.148.106.125/32 ~all"
+
+Primero, el servidor haría una consulta DNS a los registros MX de fruna.cl. Nosotros podemos hacerlo
+manualmente así:
+
+    $ dig +short mx fruna.cl
+    20 cloud16.spamtitan.com.
+    10 cloud15.spamtitan.com.
+
+Luego, haría consultas adicionales para obtener la dirección IP de los servidores de correo recién
+obtenidos:
+
+    $ dig +short a cloud15.spamtitan.com
+    18.188.207.172
+    18.190.56.214
+    18.216.101.235
+
+    $ dig +short a cloud16.spamtitan.com
+    18.190.56.214
+    18.216.101.235
+    18.188.207.172
+
+Ahora que eso está listo, el servidor puede analizar bien el "+mx" del registro. Si la dirección IP
+del emisor hace match, es decir, corresponde a alguna de las direcciones anteriores, se detiene todo
+y el resultado de la evaluación es PASS (por el calificador +). Por otro lado, si no hace match y la
+dirección IP no corresponde a uno de los servidores de correo del dominio, se continúa con la
+siguiente regla definida, "+ip4:201.148.106.125" en este caso.
+
+Cuando el servidor ve "+ip4:201.148.106.125", este simplemente verifica si la dirección IP del
+emisor está dentro del segmento especificado, 201.148.106.125/32 en particular. Si esto es así, el
+resultado de la evaluación sería PASS por el calificador "+".
+
+Para finalizar, independiente de la dirección IP de origen, el mecanismo "all" haría match siempre y
+terminaría la evaluación como un SOFTFAIL debido al calificador "~".
+
+En palabras simples, este registro SPF establece que las direcciones IP autorizadas (o sea que
+evaluan como un PASS) son los servidores de correo del dominio y 201.148.106.125. Para cualquier
+otro origen, la evaluación de la política tendrá como resultado un SOFTFAIL.
+
+
+$ dig +short txt pdichile.cl
+"v=spf1 +a:mail.pdichile.cl ~all"
+
+$dig +short txt sre.cl
+"v=spf1 a mx a:sre.cl ip4:38.7.201.30 ip6:fe80::216:3cff:fe4f:4a9c ?all"
 
 
 - Contexto histórico y qué hace
@@ -398,4 +497,4 @@ include
 - Recomendaciones generales
 
 [ Referencias ]
-:)
+[HOLA] https://datatracker.ietf.org/doc/html/rfc7208#section-7.1
