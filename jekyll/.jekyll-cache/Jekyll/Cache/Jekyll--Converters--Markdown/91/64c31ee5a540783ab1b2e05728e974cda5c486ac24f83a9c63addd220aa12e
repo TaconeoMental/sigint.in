@@ -1,0 +1,569 @@
+I"��<pre style="border: none; padding: 0;">
+ __________________________
+|\ From: neo        .__.  /|
+| \ To: sigint.in   |  | / |
+|  \  ._-..         '""'/  |
+|  /\__________________/\  |
+| /                      \ |
+|/               -.,-_    \|
+|__________________________|
+</pre>
+
+<h2 id="-1---smtp-qué-cómo-y-cuándo-">.–[ 1 - SMTP: Qué, cómo y cuándo ]——————————————————–</h2>
+
+<p>El protocolo SMTP saluda al mundo en noviembre del año 1982 con piñatas y confetti, en la forma de un RFC titulado “Simple Mail Transfer Protocol” (Protocolo Simple de Transferencia de Correos)[0]. Como su título lo indica, este documento detalla minuciosamente la implementación de un protocolo de comunicación que pronto formaría parte del día a día de miles de personas, transformándose en un pilar fundamental del internet que hoy conocemos.</p>
+
+<p>La estructura fundamental del protocolo es relativamente sencilla. Existen las siguientes partes en juego:</p>
+
+<pre style="border: none; padding: 0;">
+\- Usuario: Quien quiere enviar el correo
+\- Cliente SMTP
+\- Servidor SMTP
+
+                  +----------+                +----------+
+      +------+    |          |                |          |
+      | User |&lt;--&gt;|          |      SMTP      |          |
+      +------+    |  Client- |Commands/Replies|  Server- |
+      +------+    |   SMTP   |&lt;--------------&gt;|   SMTP   |    +------+
+      | File |&lt;--&gt;|          |    and Mail    |          |&lt;--&gt;| File |
+      |System|    |          |                |          |    |System|
+      +------+    +----------+                +----------+    +------+
+                   SMTP client                SMTP server
+                              Fuente: RFC5321
+</pre>
+
+<p>En donde el usuario inicializa un envío a través del cliente SMTP, quien establece un canal de comunicación con el servidor SMTP. A través de este túnel, el cliente envía comandos -especificando los detalles del correo- y el servidor responde con códigos de estado a cada uno de estos. Uno de estos intercambios se podría ver algo así:</p>
+
+<pre style="border: none; padding: 0;">
+C = Cliente
+S = Servidor
+
+    S: 220 sigint.in Simple Mail Transfer Service Ready                  
+    C: EHLO demon.cl                                                     
+    S: 250-sigint.in greets demon.cl                                     
+    C: MAIL FROM:&lt;miku@demon.cl&gt;                                        
+    S: 250 OK                                                            
+    C: RCPT TO:&lt;neo@kirby.cl&gt;                                          
+    S: 250 OK                                                            
+    C: DATA                                                              
+    S: 354 Start mail input; end with &lt;CRLF&gt;.&lt;CRLF&gt;                      
+    C: From: Miku &lt;miku@demon.cl&gt;                                       
+    C: Subject: Importante.                                              
+    C: To: Neo &lt;neo@kirby.cl&gt;                                          
+    C:
+    C: Querido Neo:                                            
+    C: Olvidé cuándo tenía que enviarte el correo falso para el blog.    
+    C: Quedo atento.                                                     
+    C:
+    C: - Miku
+    C: .                                                                 
+    S: 250 OK                                                            
+    C: QUIT                                                              
+    S: 221 sigint.in Service closing transmission channel                
+</pre>
+
+<p>En otras palabras:</p>
+
+<pre style="border: none; padding: 0;">
+ ____________________________________________________________________________________
+/                                                                                    \
+|    .------------------------------------------------------.                        |
+|   ( Hola, soy sigint.in. Estoy listo para recibir comandos )                       |
+|    '---------------------------------------------.--------'-------------------.    |
+|                                                 ( Hola sigint.in, soy demon.cl )   | 
+|    .-------------.                               '----------------------------'    |
+|   ( Hola demon.cl )                                                                |
+|    '------------.'------------------------------------------------------------.    |
+|                 ( El usuario que va a *transmitir* el mensaje es miku@demon.cl )   |
+|    .---.         '------------------------------------------------------------'    |
+|   ( Oki )                                                                          |
+|    '---'    .-----------------------------------------------------------------.    |
+|            ( El usuario que recibe el mensaje y las respuestas es neo@kirby.cl )   |
+|    ,---.    '-----------------------------------------------------------------'    |
+|   ( Oki )                                                                          |
+|    '---'                         .--------------------------------------------.    |
+|                                 ( Ahora te voy a pasar el contenido del correo )   |
+|    .------------------ ----.     '--------------------------------------------'    |
+|   ( Dele nomás, usted avisa )                                                      |
+|    '----.------------------'--------------------------------------------------.    |
+|        /       El usuario que va a componer el mensaje es Miku (miku@demon.cl) \   |
+|        |                                                 Asunto: "Importante." |   |
+|        |   Que el receptor vea que el mensaje va dirigido a Neo (neo@kirby.cl) |   |
+|        |                                          Mensaje: "Querido Neo:..."   |   |
+|        \                                                                 Listo /   |
+|    .----'.--------------------------------------------------------------------'    |
+|   ( Ok ok )                                                                        |
+|    '-----'                                                    .---------------.    |
+|                                                              ( Ok chao besitos )   |
+|    .----------.                                               '---------------'    |
+|   ( Chaooo uwu )                                                                   |
+|    '----------'                                                                    |
+\____________________________________________________________________________________/
+          Chat entre nosotros (demon.cl) y el servidor de correo (sigint.in)
+</pre>
+
+<p>Esto dejaría un mensaje a nombre de miku@demon.cl en la cola para neo@kirby.cl.</p>
+
+<p>Muy bonito todo, pero un poco preocupante en realidad. Como mencioné antes, SMTP es el protocolo que se usa actualmente (2023) para el envío de correos. Un poco extraño, considerando que fundamentalmente sigue siendo igual y que SE CREÓ HACE MÁS DE 40 AÑOS. Así es amigos y amigas, uno de los protocolos que sostiene gran parte de la comunicación moderna está construido sobre cimientos desactualizados, vulnerables y definitivamente no diseñados para el internet del siglo XXI.</p>
+
+<p>Analicemos cómo funciona con más detalle y busquemos los problemas de diseño inherentes que viene arrastrando desde hace más de cuatro décadas.</p>
+
+<h2 id="-11---integridad-">.–[ 1.1 - ¿Integridad? ]——————————————————————</h2>
+
+<p>Dado el contexto en el que nació SMTP, el diseño original no contempla ningún mecansismo para asegurar la integridad del mensaje o para establecer si el remitente de este es genuino realmente.</p>
+
+<p>Para entender esto, veamos cómo es que se transporta la información enviada.</p>
+
+<p>SMTP transporta estructuras llamadas “Objetos de correo”, compuestass por dos partes: un sobre y contenido. El sobre se configura a través de una serie de transacciones una vez que se inicia la conexión, mientras que el contenido se especifica utilizando el comando DATA. En el ejemplo de la parte anterior, el objeto de correo habría quedado algo así:</p>
+
+<pre style="border: none; padding: 0;">
+    .-----------------------------.
+    | EHLO demon.cl               |
+    | MAIL FROM: &lt;miku@demon.cl&gt;  |      &lt;- Sobre SMTP
+    | RCPT TO: &lt;neo@kirby.cl&gt;     |
+    |   . ----------------------------.
+    |   | FROM: Miku &lt;miku@demon.cl&gt;  |
+    '---| TO: Neo &lt;neo@kirby.cl&gt;      |  &lt;- Cabecera del contenido
+        | SUBJECT: Importante.        |
+        !-----------------------------!
+        | Querido Neo:...             |  &lt;- Cuerpo del contenido
+        '-----------------------------'
+</pre>
+
+<p><strong>[!] El mensaje no se ve realmente así. Estos valores se reflejan en otras cabeceras de distinto nombre.</strong></p>
+
+<p>Si se fijan bien, hay algunos valores que parecen ser redundantes: MAIL FROM/FROM y RCPT TO/TO. Sin embargo, son solo los primeros -aquellos presentes en el sobre- los que realmente importan para el enrutamiento del mensaje. FROM y TO sirven unicamente como feedback visual para el usuario y son los valores que se muestran en los campos “From” y “To” (“De” y “Para” in spanish). Esto significa que no existe ningún mecanismo que nos obligue a homologar los valores del sobre y el contenido, por lo que es posible ingresar datos arbitrarios y enviar correos a nombre de otros usuarios y dominios.</p>
+
+<p>Para demostrar esto, levanté un servidor SMTP en uno de los servidores de sigint.in con python (pueden hacer esto localmente pero me gusta complicar todo):</p>
+
+<pre style="border: none; padding: 0;">
+    $ python3 -m smtpd -n -c DebuggingServer 0.0.0.0:1337
+</pre>
+
+<p>Luego, me conecté usando telnet y envié un correo tal y como describí en la parte anterior. Sin embargo, reemplacé los valores de “MAIL FROM” y “FROM” por “sigint.in@cloudflare.com”. Esta dirección de correo no existe y es solo para demostrar que el protocolo no valida estos campos de ninguna forma.</p>
+
+<pre style="border: none; padding: 0;">
+    $ telnet sigint.in 1337
+    Trying xx.xxx.xx.xx...
+    Connected to sigint.in.
+    Escape character is '^]'.
+    220 localhost Python SMTP proxy version 0.3
+    EHLO elmejorblogdelmundo
+    250-localhost
+    250-8BITMIME
+    250 HELP
+    MAIL FROM:&lt;sigint.in@cloudflare.com&gt;
+    250 OK
+    RCPT TO:&lt;neo@sigint.in&gt;
+    250 OK
+    DATA
+    354 End data with &lt;CR&gt;&lt;LF&gt;.&lt;CR&gt;&lt;LF&gt;
+    To: neo@sigint.in
+    From: sigint.in@cloudflare.com
+    Subject: ¿Integridad?
+
+    Creo que no :)
+    .
+    250 OK
+    QUIT
+    221 Bye
+    Connection closed by foreign host.
+</pre>
+
+<p>Volviendo al servidor SMTP, nos damos cuenta de que el correo llegó exitosamente, junto con el remitente falso.</p>
+
+<pre style="border: none; padding: 0;">
+    $ python3 -m smtpd -n -c DebuggingServer 0.0.0.0:1337
+    ---------- MESSAGE FOLLOWS ----------
+    b'To: neo@sigint.in'
+    b'From: sigint.in@cloudflare.com'
+    b'Subject: \xc2\xbfIntegridad?'
+    b'X-Peer: xxx.xxx.xxx.xxx'
+    b''
+    b'Creo que no :)'
+    ------------ END MESSAGE ------------
+</pre>
+
+<p>Los dejo invitados a recrear este experimento y estudiar como se comportan los distintos comandos
+del protocolo, junto con las cabeceras que producen posteriormente.</p>
+
+<h2 id="-2---smtp-electric-boogaloo-">.–[ 2 - SMTP: Electric Boogaloo ]———————————————————</h2>
+
+<p>Las décadas han pasado y ahora facebook y los minions son tendencia. Así es, el año es 2023 y SMTP lo sabe. Han habido muchas revisiones al protocolo en el último tiempo (ya vamos en RFC5321!) y está cada vez más preparado para los tiempos modernos. Aquí algunos de los nuevos personajes:</p>
+
+<pre style="border: none; padding: 0;">
+\- MUA (Mail User Agent)
+| \ Mejor conocido como cliente de correo (Gmail, Thunderbird, Outlook, etc.)
+|
+\- MTA (Mail Transfer Agent)
+| \ También llamado servidor de correo (Microsoft Exchange, Postfix, Sendmail, etc.)
+|
+\- MDA (Mail Delivery Agent)
+| \ Usado por los agentes MTA para entregar el correo al buzón de un usuario
+|  \ concreto.
+|
+\- Muchos más irrelevantes para lo que estamos viendo
+</pre>
+
+<p>Simplificando mucho la realidad del proceso, aquí un pequeño diagrama que ejemplifica el rol de cada uno de estos nuevos actores:</p>
+
+<pre style="border: none; padding: 0;">
+                                        kirby.cl ,-MX-&gt; demon.cl
+                                     .----------/.   .-----------.
+                                     |         / |   |           |
+                   .-----.     SMTP  |  .----./  SMTP|  .-----.  |
+          (&gt;'-')&gt;  | MUA |-----------~-&gt;| MTA |--------&gt;| MTA |  |
+      kirby@kirby.cl-----'           |  '--.--'  |(2)|  '--.--'  |
+                                     |     |     |   |     |     |
+                                     |     | (1) |   | (3) |     |
+                                     |     |     |   |     |     |
+                                     |     v     |   |     v     |
+                   .-----.   IMAP/POP|  .-----.  |   |  .-----.  |IMAP/POP   .-----. 
+          (&gt;'-')&gt;  | MUA |&lt;----------~--| MDA |  |   |  | MDA |--~----------&gt;| MUA |  &lt;('-'&lt;)
+        neo@kirby.cl-----'           |  '-----'  |   |  '-----'  |           '-----miku@demon.cl
+                                     '-----------'   '-----------'
+</pre>
+
+<p>En primer lugar, el usuario kirby en kirby.cl quiere enviarle correos electrónicos a sus queridos amigos. Por un lado está neo, quien también está en kirby.cl, y por otro está miku, presente en demon.cl. Ya que el mensaje es el mismo para ambos, kirby lo redactará a través de su MUA, especificando a sus dos amigos en la cabecera “RCPT TO”. Los comandos que enviará se verán algo así:</p>
+
+<pre style="border: none; padding: 0;">
+    HELO kirby.local
+    MAIL FROM:&lt;kirby@kirby.cl&gt;
+    RCPT TO:"Neo" &lt;neo@kirby.cl&gt;, "Miku" &lt;miku@demon.cl&gt;
+    DATA
+    From: &lt;kirby@kirby.cl&gt;
+    To:"Neo" &lt;neo@kirby.cl&gt;, "Miku" &lt;miku@demon.cl&gt;
+    Subject: Mensaje de amor
+
+    Los tkm
+    .
+    QUIT
+</pre>
+
+<p>Acá, el MUA de kirby@kirby.cl (Thunderbird porque apoya el software libre) enviará los comandos de arriba al MTA de kirby.cl, smtp.kirby.cl en este caso. Este MTA tomará 2 caminos distintos, uno para cada usuario:</p>
+
+<p>Para neo@kirby.cl, se dará cuenta de que el usuario se encuentra en el mismo dominio, por lo que encolará el mensaje en el MDA de kirby.cl (1), desde donde neo@kirby.cl recojerá el mensaje para visualizarlo a través de su MUA y recibir todo el amor de su amigo. Por otro lado, el MTA se dará cuenta de que miku se encuentra en otro dominio (demon.cl), por lo que el camino será un poco más largo:</p>
+
+<pre style="border: none; padding: 0;">
+    0. Hará una consulta DNS a los registros MX de demon.cl para identificar el MTA correspondiente
+    1. Enrutará el mensaje hacia ese MTA a través de SMTP (2)
+    2. Eso era todo. No era tan largo en realidad
+</pre>
+
+<p>Luego el principio es el mismo. El MTA de demon.cl se dará cuenta de que el mensaje va dirigido hacia un usuario de su dominio, por lo que se lo entregará al MDA (3) para que miku@demon.cl lo pueda recuperar y visualizar con su MUA de preferencia.</p>
+
+<p>Muy bonito, un aplauso. Me imagino que ya no es posible suplantar identidades y enviar correos con emisores arbitrarios como en la parte anterior, ¿correcto? Si y no, es complejo. A estas alturas, la adopción del protocolo se ha vuelto tan inmensa que reemplazarlo lamentablemente ya no es una opción viable. Las soluciones más adoptadas se basan en “parches” que construyen nuevas medidas de seguridad al rededor del ya existente estándar. Veamos cada una de ellas con detalle.</p>
+
+<h2 id="--21---spf-restricción-de-origen-">.—-[ 2.1 - SPF: Restricción de origen ]————————————————–</h2>
+
+<p>El año es 2014 y luego de 8 años de deliberación y debate, SPF (Sender Policy Framework) es finalmente formalizado como estándar de internet en el RFC7208. SPF es el primero de muchos contrincantes que nacen para luchar contra de la falta de autenticación intrínseca de SMTP.</p>
+
+<p>El funcionamiento de SPF es relativamente simple:</p>
+
+<pre style="border: none; padding: 0;">
+    0. El dueño de un dominio publica la política SPF en un registro TXT. Este especifica qué direcciones IP tienen autorizado enviar correos a nombre del dominio.
+
+    1. Cuando un MTA recibe un correo, este toma el dominio utilizado en la cabecera "Return-Path"* y hace una consulta DNS para obtener su política SPF (previamente definida en el registro TXT).
+
+    2. El MTA receptor verifica si la dirección IP del MTA emisor del correo está en la lista que especifica la política SPF, esto es, si está autorizada para enviar correos a nombre del dominio.
+
+    3. Esta evaluación puede tener varios resultados, pero en general indica si el correo viene de un servidor legítimo o no.
+</pre>
+
+<p>** ¡La cabecera “Return-Path” es el valor indicado con el comando SMTP “MAIL FROM”!**</p>
+
+<pre style="border: none; padding: 0;">
+    .~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.
+    (  '.  _  .'      ¿Sabías que SPF originalmente significaba "Sender Permitted From" (Emisor       )
+    ( -=  (~)  =-     Permitido Desde)? Según yo, este nombre es mucho más obvio y claro que el       )
+    (  .'  #  '.      críptico "Registro de Marco de Políticas del Remitente".                        )
+    '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+</pre>
+
+<p>Ahora veamos cuáles son las partes que componen a un registro SPF y cómo funcionan.</p>
+
+<h2 id="-211---mecanismos-">.——[ 2.1.1 - Mecanismos ]————————————————————–</h2>
+
+<p>Los mecansimos en los registros SPF definen “identidades” dentro de la política. Estas identidades pueden hacer referencia a direcciónes IPv4/IPv6, registros DNS del dominio, registros SPF de otros dominios, entre otras cosas. Los mecanismos definidos en el RFC7208 son:</p>
+
+<pre style="border: none; padding: 0;">
+.
+| Mecanismos Básicos
+\---+- all
+    |  \ Hace match a cualquier dirección IP.                                                                )
+    |   '----------------------------------------------------------------------------------------------------'
+    |
+    \- include
+       \ Hace match si la evaluación del registro SPF al que hace referencia resulta en un PASS (es mucho
+        \ más complejo pero todo a su tiempo).                                                               )
+         '---------------------------------------------------------------------------------------------------'
+
+.
+| Mecanismos de Emisor Designado
+\---.- a
+    |  \ Hace match si el dominio tiene registros A/AAAA que coinciden con la dirección IP del emisor.
+    |   \ También es posible especificar un dominio distinto, de forma que se utilicen sus registros A/AAAA
+    |    \ para la validación y no los del dominio actual. Ej: a:smtp.sigint.in va a coincidir si la
+    |     \ dirección IP del emisor se encuentra en los registros A o AAAA de smtp.sigint.in.                )
+    |      '-------------------------------------------------------------------------------------------------'
+    \- mx
+    |  \ Hace match si la dirección IP del emisor corresponde a uno de los servidores de correo del dominio
+    |   \ especificados en los registros MX. También es posible especificar un dominio disitinto para que se
+    |    \ consulten sus registros MX.                                                                       )
+    |     '--------------------------------------------------------------------------------------------------'
+    |
+    \- ip4/ip6
+    |  \ Coincide si la dirección IP del emisor se encuentra dentro del segmento especificado por el
+    |   \ mecanismo. Ej: ip4:13.37.133.7/24, ip6:fd1b:212c:a5f9::/48                                         )
+    |    '---------------------------------------------------------------------------------------------------'
+    |
+    \- exists
+       \ Coincide si el dominio especificado tiene un registro A. Ej: exists:kirby.sigint.in.                )
+        '----------------------------------------------------------------------------------------------------'
+</pre>
+
+<h2 id="-212---calificadores-">.——[ 2.1.2 - Calificadores ]———————————————————–</h2>
+
+<p>Los calificadores indican el resultado que tiene la evaluación de un mecanismo. Los calificadores definidos son los siguientes:</p>
+
+<pre style="border: none; padding: 0;">
+.---.----------+--.
+| + | PASS     | La dirección IP del emisor está autorizada para enviar correos a nombre del dominio
+| - | FAIL     | La dirección IP del emisor NO está autorizada para enviar correos a nombre del dominio
+| ~ | SOFTFAIL | El dueño del dominio se amarilló y no dice que PASS pero tampoco que FAIL
+| ? | NEUTRAL  | Una cosa media rara entre - y ~. Hay muchas interepretaciones distintas por los MTA
+'---'----------+--'
+</pre>
+
+<h2 id="-213---modificadores-">.——[ 2.1.3 - Modificadores ]———————————————————–</h2>
+
+<p>No es relevante para esto, pero esta en el RFC si te interesa :)</p>
+
+<h2 id="-214---el-registro-en-sí--">.——[ 2.1.4 - El registro en sí ]——————————————————-</h2>
+
+<p>La sintaxis del registro SPF está definida formalmente en el RFC [HOLA], pero nadie sabe leer gramáticas libres de contexto así que este regex de sintaxis inventada basta:</p>
+
+<pre style="border: none; padding: 0;">
+    "v=spf1 ((CALIFICADOR)?MECANISMO(:VALOR)?)*"
+      ~~.~~   ~~~~~.~~~~~  ~~~~.~~~~  ~~.~~
+        |          |           |        '--------&gt; Depende del mecanismo. Puede ser un dominio, bloques CIDR, etc.
+        |          |           '-----------------&gt; Un mecanismo jaja. A, MX, IP4, IP6, ...
+        |          '-----------------------------&gt; '+', '-', '~', '?'. Es opcional, si no se especifica se asume un '+' implícito.
+        '----------------------------------------&gt; Omaigat esto es nuevo. Es la versión. Siempre debe ser spf1.
+</pre>
+
+<h2 id="-215---evaluación-de-una-política--">.——[ 2.1.5 - Evaluación de una política ]———————————————-</h2>
+
+<p>El algoritmo que evalúa la politica SPF de un dominio contra una dirección IP, llamémoslo check_spf, es relativamente simple. Podemos visualizarlo con una pseudo-implementación básica en python:</p>
+
+<figure class="highlight"><pre><code class="language-python" data-lang="python"><span class="kn">import</span> <span class="nn">re</span>
+
+<span class="n">cal_strings</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">"+"</span><span class="p">:</span> <span class="s">"PASS"</span><span class="p">,</span>
+    <span class="s">"-"</span><span class="p">:</span> <span class="s">"FAIL"</span><span class="p">,</span>
+    <span class="s">"~"</span><span class="p">:</span> <span class="s">"SOFTFAIL"</span><span class="p">,</span>
+    <span class="s">"?"</span><span class="p">:</span> <span class="s">"NEUTRAL"</span>
+<span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">get_dns_record</span><span class="p">(</span><span class="n">domain</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+    <span class="k">pass</span> <span class="c1"># [REDACTED]
+</span>
+<span class="k">def</span> <span class="nf">matches</span><span class="p">(</span><span class="n">dir_ip</span><span class="p">,</span> <span class="n">mecanismo</span><span class="p">,</span> <span class="n">dominio</span><span class="p">):</span>
+    <span class="n">mec</span> <span class="o">=</span> <span class="n">mecanismo</span><span class="p">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">mec</span> <span class="o">==</span> <span class="s">"all"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+
+    <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s">"(a|mx|ip4|ip6|exists|include)(?::(.*))?"</span>
+    <span class="n">mec</span><span class="p">,</span> <span class="n">val</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="n">findall</span><span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">mecanismo</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">mec</span> <span class="o">==</span> <span class="s">"a"</span><span class="p">:</span>
+        <span class="n">a_record</span> <span class="o">=</span> <span class="n">get_dns_record</span><span class="p">(</span><span class="n">val</span> <span class="ow">or</span> <span class="n">dominio</span><span class="p">,</span> <span class="s">"A"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dir_ip</span> <span class="o">==</span> <span class="n">a_record</span>
+    <span class="k">if</span> <span class="n">mec</span> <span class="o">==</span> <span class="s">"mx"</span><span class="p">:</span>
+        <span class="n">mx_records</span> <span class="o">=</span> <span class="n">get_dns_record</span><span class="p">(</span><span class="n">val</span> <span class="ow">or</span> <span class="n">dominio</span><span class="p">,</span> <span class="s">"MX"</span><span class="p">)</span>
+        <span class="n">mx_ips</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_dns_record</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="s">"A"</span><span class="p">)</span> <span class="k">for</span> <span class="n">host</span> <span class="ow">in</span> <span class="n">mx_records</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">dir_ip</span> <span class="ow">in</span> <span class="n">mx_ips</span>
+    <span class="k">if</span> <span class="n">mec</span> <span class="ow">in</span> <span class="p">(</span><span class="s">"ip4"</span><span class="p">,</span> <span class="s">"ip6"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">dir_ip</span> <span class="ow">in</span> <span class="n">expand_hosts</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">mec</span> <span class="o">==</span> <span class="s">"exists"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">val</span><span class="p">:</span> <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">return</span> <span class="n">get_dns_record</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="s">"A"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">mec</span> <span class="o">==</span> <span class="s">"include"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">val</span><span class="p">:</span> <span class="k">return</span> <span class="bp">False</span>
+        <span class="n">spf_record</span> <span class="o">=</span> <span class="n">get_dns_record</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="s">"TXT"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">check_spf</span><span class="p">(</span><span class="n">spf_record</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">dir_ip</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">check_spf</span><span class="p">(</span><span class="n">registro_spf</span><span class="p">,</span> <span class="n">dominio</span><span class="p">,</span> <span class="n">dir_ip</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">registro_spf</span><span class="p">:</span> <span class="c1"># No existe un registro SPF
+</span>        <span class="k">return</span> <span class="s">"PASS"</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">valid_record</span><span class="p">(</span><span class="n">registro_spf</span><span class="p">):</span> <span class="c1"># No es válido o está malformado
+</span>        <span class="k">return</span> <span class="s">"PERMERROR"</span>
+    <span class="k">for</span> <span class="n">calificador</span><span class="p">,</span> <span class="n">mecanismo</span> <span class="ow">in</span> <span class="n">get_rules</span><span class="p">(</span><span class="n">registro_spf</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">matches</span><span class="p">(</span><span class="n">dir_ip</span><span class="p">,</span> <span class="n">mecanismo</span><span class="p">,</span> <span class="n">dominio</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">cal_strings</span><span class="p">[</span><span class="n">calificador</span><span class="p">]</span>
+    <span class="k">return</span> <span class="s">"NEUTRAL"</span></code></pre></figure>
+
+<p>La parte importante del programa es el ciclo for en la función check_spf. En palabras humanas, para hacer la validación, el servidor itera por cada par calificador-mecanismo, viendo si la dirección IP del emisor hace match con cada mecanismo</p>
+
+<p>Para entenderlo mejor, desglosemos los registros SPF de dominios reales. Para esto podemos utilizar dig, especificando el registro TXT y +short para que no muestre tanta tontera.</p>
+
+<p>Los mecanismos se evaluan uno por uno, de izquierda a derecha, hasta el primero que haga match. Por lo mismo, iremos paso por paso simulando lo que haría un MTA real al evaluar el registro contra una dirección IP.</p>
+
+<pre style="border: none; padding: 0;">
+    $ dig +short txt fruna.cl
+    "v=spf1 mx ip4:201.148.106.125 ~all"
+</pre>
+
+<p>Ya que existen calificadores implícitos, el registro es equivalente a:</p>
+
+<pre style="border: none; padding: 0;">
+    "v=spf1 +mx +ip4:201.148.106.125/32 ~all"
+</pre>
+
+<p>Al ver el mecanismo mx, el servidor haría una consulta DNS a los registros MX de fruna.cl. Nosotros
+podemos hacerlo manualmente así:</p>
+
+<pre style="border: none; padding: 0;">
+    $ dig +short mx fruna.cl
+    20 cloud16.spamtitan.com.
+    10 cloud15.spamtitan.com.
+</pre>
+
+<p>Luego, haría consultas adicionales para obtener la dirección IP de los servidores de correo recién
+obtenidos:</p>
+
+<pre style="border: none; padding: 0;">
+    $ dig +short a cloud15.spamtitan.com
+    18.188.207.172
+    18.190.56.214
+    18.216.101.235
+
+    $ dig +short a cloud16.spamtitan.com
+    18.190.56.214
+    18.216.101.235
+    18.188.207.172
+</pre>
+
+<p>Ahora que eso está listo, el servidor puede analizar bien el mecanismo “+mx” del registro. Si la dirección IP del emisor hace match, es decir, corresponde a alguna de las direcciones anteriores, se detiene todo y el resultado de la evaluación es PASS (por el calificador +). Por otro lado, si no hace match y la dirección IP no corresponde a uno de los servidores de correo del dominio, se continúa con la siguiente regla definida, <strong>+ip4:201.148.106.125</strong> en este caso.</p>
+
+<p>El mecanismo <strong>+ip4:201.148.106.125</strong> es para verificar si la dirección IP del emisor está dentro del segmento especificado, 201.148.106.125/32 en este caso particular. Si esto es así, el resultado de la evaluación sería PASS por el calificador “+”.</p>
+
+<p>Para finalizar, independiente de la dirección IP de origen, el mecanismo “all” haría match siempre y terminaría la evaluación como un SOFTFAIL debido al calificador “~”.</p>
+
+<p>Basicamente, este registro SPF establece que las direcciones IP autorizadas (o sea que evaluan como un PASS) son los servidores de correo del dominio fruna.cl y 201.148.106.125. Para cualquier otro origen, la evaluación de la política tendrá como resultado un SOFTFAIL.</p>
+
+<p>Podemos hacer el mismo ejercicio con el dominio pdichile.cl.</p>
+
+<pre style="border: none; padding: 0;">
+    $ dig +short txt pdichile.cl
+    "v=spf1 +a:mail.pdichile.cl ~all"
+</pre>
+
+<p>Acá, la única dirección IP autorizada para enviar correos a nombre del dominio pdichile.cl es la
+dirección IPv4 de mail.pdichile.cl (163.247.90.21). Cualquier otra dirección (all) hace que se
+evalúe un SOFTFAIL (“~”).</p>
+
+<p>Y por último, el registro SPF de sre.cl:</p>
+
+<pre style="border: none; padding: 0;">
+    $dig +short txt sre.cl
+    "v=spf1 a mx a:sre.cl ip4:38.7.201.30 ip6:fe80::216:3cff:fe4f:4a9c ?all"
+</pre>
+
+<p>Si bien hay mucha redundancia, estas son las direcciones autorizadas:</p>
+<ul>
+  <li>a: El registro A de sre.cl (38.7.201.30)</li>
+  <li>mx: Direcciones de los registros MX de sre.cl (mail.sre.cl -&gt; 38.7.201.30)</li>
+  <li>a:sre.cl: El registro A de sre.cl (38.7.201.30)</li>
+  <li>38.7.201.30</li>
+  <li>fe80::216:3cff:fe4f:4a9c</li>
+</ul>
+
+<p>Y ?all devuelve un NEUTRAL para cualquier otra.</p>
+
+<h2 id="-216---el-gran-problema-">.——[ 2.1.6 - El gran problema ]——————————————————–</h2>
+
+<p>Obviamente SPF es mejor que nada. Es el primer mecanismo ampliamente adoptado que entrega una métrica tangible sobre la integridad de un correo electrónico. Aún así, sufre de una falla fundamental que lo hace un poco inútil para evitar la suplantación de identidad en correos electrónicos.</p>
+
+<p>Primero recordemos que un mensaje SMTP contiene dos campos que indican el emisor del mensaje, uno en el sobre SMTP y el otro en el contenido -MAIL FROM y FROM respectivamente-. Además, existe el comando HELO/EHLO hecho para que el host se identifique con el servidor de correo.</p>
+
+<p>La falla fundamental de SPF es que solo verifica las identidades presentes en las cabeceras Return-Path y Received, que corresponden a los valores de los comandos MAIL FROM y HELO/EHLO. Estos valores no son directamente visibles para el usuario a menos que revise el mensaje en bruto. Por otro lado, la cabecera FROM, que sí es mostrada al usuario en el MUA como el emisor del mensaje (comunmente representada como “De: …”), no es verificada por SPF por lo que puede contener cualquier valor; de hecho, ni siquiera es obligatoria. Esto en teoría permitiría enviar un correo desde un servidor legítimo, con valores de MAIL FROM y HELO/EHLO reales, pero suplantando la identidad en la cabecera FROM.  De esta forma, se evaluaría el SPF con un PASS, pero el usuario final vería un emisor falso en su interfaz.</p>
+
+<p>Algo así:</p>
+
+<pre style="border: none; padding: 0;">
+    .------------------------------.
+    | EHLO real.cl                 |
+    | MAIL FROM: &lt;real@real.cl&gt;    |
+    | RCPT TO: &lt;neo@kirby.cl&gt;      |
+    |   . -----------------------------.
+    |   | FROM: Falso &lt;falso@falso.cl&gt; |
+    '---| TO: Neo &lt;neo@kirby.cl&gt;       |
+        | SUBJECT: Importante.         |
+        !------------------------------!
+        | Querido Neo:...              |
+        '------------------------------'
+</pre>
+
+<p>Asumiendo que estamos enviando el correo desde un servidor permitido por el SPF de real.cl. Así, SPF pasará con un PASS, pero neo@kirby.cl verá como emisor a falso@falso.cl.</p>
+
+<h2 id="--22---dkim-firma-digital-">.—-[ 2.2 - DKIM: Firma digital ]———————————————————</h2>
+
+<ul>
+  <li>Contexto histórico y qué hace</li>
+  <li>Cómo se ve, dónde está (registros TXT, cómo buscarla con dig, etc.)</li>
+  <li>Descripción detallada (Explicar selectores, mostrar que cabeceras se firman)</li>
+  <li>Ejemplos reales</li>
+  <li>Por qué no es suficiente</li>
+  <li>Cómo reacciona cada MUA a la política</li>
+</ul>
+
+<h2 id="--23---dmarc-uniendo-todo-">.—-[ 2.3 - DMARC: Uniendo todo ]———————————————————</h2>
+
+<ul>
+  <li>Contexto histórico y qué hace</li>
+  <li>Cómo se ve, dónde está (registros TXT, cómo buscarla con dig, etc.)</li>
+  <li>Descripción detallada (Explicar las políticas none, reject, quarintine)</li>
+  <li>Ejemplos reales (stats)</li>
+  <li>Por qué es suficiente (la mayoría de las veces)</li>
+  <li>Cómo reacciona cada MUA a la política</li>
+</ul>
+
+<h2 id="-3---atacando-dominios-parte-1-">.–[ 3 - Atacando dominios: Parte 1 ]——————————————————</h2>
+
+<ul>
+  <li>Recon de registros DNS</li>
+  <li>Análisis de SPF
+  0) Validación insuficiente
+  1) Políticas excesivamente permisivas
+  2) Interpretación no estandarizada
+  3) SPF y los hostings compartidos
+  4) Forwarders</li>
+  <li>Análisis de DMARC</li>
+  <li>Explicación detallada del problema</li>
+  <li>Ejemplos reales</li>
+</ul>
+
+<h2 id="-4---atacando-dominios-parte-2-">.–[ 4 - Atacando dominios: Parte 2 ]——————————————————</h2>
+
+<ul>
+  <li>Todos los registros están bien, ahora qué</li>
+  <li>Análisis de DKIM y reutilización de firmas</li>
+  <li>Email forwarders</li>
+  <li>Discrepancias visuales en distintos MUAs</li>
+  <li>Ejemplos reales</li>
+</ul>
+
+<h2 id="-5---qué-podemos-hacer-al-respecto--">.–[ 5 - ¿Qué podemos hacer al respecto? ]————————————————-</h2>
+<ul>
+  <li>Por qué está todo así</li>
+  <li>Concientización</li>
+  <li>Ideas??</li>
+  <li>Recomendaciones generales</li>
+</ul>
+
+<p>[ Referencias ]
+[HOLA] https://datatracker.ietf.org/doc/html/rfc7208#section-7.1
+[XD] https://www.rfc-editor.org/rfc/rfc5321#section-4.5.3.2.2</p>
+
+:ET

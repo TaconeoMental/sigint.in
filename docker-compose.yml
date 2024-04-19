@@ -1,14 +1,16 @@
-version: "3.7"
-
 services:
+  jekyll:
+    image: jekyll/jekyll:latest
+    volumes:
+      - ./jekyll:/srv/jekyll
   caddy:
     image: caddy:2.6.4
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - $PWD/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - $PWD/srv/public:/srv
+      - $PWD/server/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - $PWD/server/root:/srv
       - caddy_data:/data
       - caddy_config:/config
 
