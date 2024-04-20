@@ -1,0 +1,15 @@
+# Jekyll
+jekyll/.jekyll-cache/
+jekyll/_posts/*
+jekyll/_sass/*
+jekyll/_site/*
+jekyll/assets/*
+jekyll/*.html
+
+!jekyll/_posts/.keep
+!jekyll/_sass/.keep
+!jekyll/assets/.keep
+!server/root/.keep
+
+# Compiled files
+server/root/*
