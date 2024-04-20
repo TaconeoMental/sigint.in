@@ -5,6 +5,16 @@ sigint.in {
         X-Content-Type-Options: "nosniff"
         Referrer-Policy "no-referrer-when-downgrade"
         Content-Security-Policy "base-uri 'self'; default-src 'self';"
+        Cache-Control "no-cache, no-store, must-revalidate"
+    }
+
+    # Static files get cached for some time
+    @static {
+        file
+        path *.map *.css *.js *.ico *.gif *.jpg *.jpeg *.png *.svg *.woff
+    }
+    handle @static {
+        header Cache-Control "public, max-age=3600, must-revalidate"
     }
 
     log {
