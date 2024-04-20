@@ -50,7 +50,7 @@ jekyll *ARGS:
     set -euo pipefail
     rm --recursive --force {{HERE}}/jekyll/{_posts,_sass,_site,assets,.jekyll-cache}/*
     rm --recursive --force {{HERE}}/jekyll/.jekyll-cache
-    touch {{HERE}}/jekyll/{_posts,_sass,_site,assets}/.keep
+    touch {{HERE}}/jekyll/{_posts,_sass,assets}/.keep
     rm --recursive --force {{HERE}}/server/root/*
     find {{HERE}}/src -maxdepth 1 -type f -printf "%f\n" |  \
         xargs -I% rm --force {{HERE}}/jekyll/%
