@@ -26,7 +26,7 @@ module Jekyll
 
       def render(context)
         content = escape_xhtml(super(context))
-        "<pre style=\"border: none; padding: 0;\">#{content}</pre>"
+        "<pre class=\"ascii-art\">#{content}</pre>"
       end
     end
   end
