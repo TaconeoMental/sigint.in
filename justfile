@@ -4,7 +4,6 @@ _default:
 HERE           := justfile_directory()
 COMPOSE_FILE   := HERE / "docker-compose.yml"
 DOCKER_COMPOSE := "docker compose --file " + COMPOSE_FILE
-WEB_SERVICE    := "caddy"
 
 set dotenv-load
 
@@ -27,27 +26,31 @@ create_volumes:
     done
 
 init: create_volumes
-    {{DOCKER_COMPOSE}} up --detach {{WEB_SERVICE}}
+    {{DOCKER_COMPOSE}} up --detach
 
-start:
-    {{DOCKER_COMPOSE}} start {{WEB_SERVICE}}
+compose *ARGS:
+    {{DOCKER_COMPOSE}} {{ARGS}}
 
-stop:
-    {{DOCKER_COMPOSE}} stop {{WEB_SERVICE}}
+jekyll *ARGS:
+    -{{DOCKER_COMPOSE}} exec -t jekyll bash -c "{{ARGS}}"
 
-down:
-    -{{DOCKER_COMPOSE}} down {{WEB_SERVICE}}
-
-run_jekyll:
-    {{DOCKER_COMPOSE}} run --rm -it jekyll bash -c "gem install jekyll-tagging"
-
-@compile:
+@compile: clean
     #!/usr/bin/env bash
     set -euo pipefail
     cp -r {{HERE}}/src/posts/* {{HERE}}/jekyll/_posts/
     cp -r {{HERE}}/src/assets/{css,images} {{HERE}}/jekyll/assets/
-    cp -r {{HERE}}/src/assets/sass {{HERE}}/jekyll/_sass/
+    cp -r {{HERE}}/src/assets/sass/* {{HERE}}/jekyll/_sass/
     find {{HERE}}/src/ -maxdepth 1 -type f -exec cp -t {{HERE}}/jekyll/ {} +
-    {{DOCKER_COMPOSE}} run --rm jekyll bash -c "jekyll build" && \
+    just jekyll "jekyll build" && \
         cp -r {{HERE}}/jekyll/_site/* {{HERE}}/server/root/ && \
         echo "Done"
+
+@clean:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm --recursive --force {{HERE}}/jekyll/{_posts,_sass,_site,assets,.jekyll-cache}/*
+    rm --recursive --force {{HERE}}/jekyll/.jekyll-cache
+    touch {{HERE}}/jekyll/{_posts,_sass,_site,assets}/.keep
+    rm --recursive --force {{HERE}}/server/root/*
+    find {{HERE}}/src -maxdepth 1 -type f -printf "%f\n" |  \
+        xargs -I% rm --force {{HERE}}/jekyll/%

@@ -1,6 +1,7 @@
 services:
   jekyll:
     image: jekyll/jekyll:latest
+    command: tail -F /dev/null
     volumes:
       - ./jekyll:/srv/jekyll
   caddy:
