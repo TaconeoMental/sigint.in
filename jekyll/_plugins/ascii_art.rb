@@ -3,11 +3,10 @@ module Jekyll
     class AsciiArtBlock < Liquid::Block
       def initialize(tag_name, text, token)
         super
-        if ['left', 'center', 'right'].include? text
-          @align = text
-        else
-          @align = 'center'
-        end
+        # Argument format: (left|right|center), (\d|[a-zA-Z0-9_]+)
+        align, padding = text.split(',').map(&:strip)
+        @align = align || ''
+        @padding = padding
       end
 
       def escape_xhtml(text)
@@ -24,9 +23,47 @@ module Jekyll
         end
       end
 
+      def normalize_lengths(text)
+        # Normalize line lengths to maintain picture's shape when right aligned
+        lines = text.lines.map(&:chomp).map(&:rstrip)
+        max_length = lines.map(&:length).max
+        padded_lines = lines.map { |line| line.ljust(max_length) }
+        padded_lines.join("\n")
+      end
+
+      def apply_padding(text, align, padding)
+        lines = text.lines.map(&:chomp).map(&:rstrip)
+        padded_lines = lines.map do |line|
+          if align == 'left'
+            line = line.prepend(" " * padding)
+          elsif align == 'right'
+            line = line.concat(" " * padding)
+          end
+          line
+        end
+        padded_lines.join("\n")
+      end
+
+      def get_padding(ctx)
+        padding_int = Integer(@padding, exception: false)
+        # Test if argument passed is an integer or a variable in the ctx's
+        # namespace. Set the padding as 10 otherwise
+        padding_int || ctx[@padding] || ctx["asciiart_padding"] || 0
+      end
+
+      def get_align(ctx)
+        if ['left', 'center', 'right'].include?(@align)
+          return @align
+        end
+        ctx[@align] || ctx["asciiart_align"] || 'center'
+      end
+
       def render(context)
-        content = escape_xhtml(super(context))
-        "<pre class=\"ascii-art\">#{content}</pre>"
+        real_padding = get_padding(context)
+        real_align = get_align(context)
+        content = normalize_lengths(escape_xhtml(super(context)))
+        content = apply_padding(content, align=real_align, padding=real_padding)
+        "<pre class=\"ascii-art-#{real_align}\">#{content}</pre>"
       end
     end
   end
