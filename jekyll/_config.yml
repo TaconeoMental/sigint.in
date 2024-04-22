@@ -12,5 +12,11 @@ plugins:
 tag_page_layout: tags
 tag_page_dir: tag
 
+# I can't believe typographic symbols are the default :P
+kramdown:
+  typographic_symbols:
+    mdash: "---"
+    ndash: "--"
+
 # TODO: revisar esto, tiene potencial
 #show_excerpts: true
