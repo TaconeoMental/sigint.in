@@ -6,7 +6,26 @@
     margin-right: auto;
 }
 
-.ascii-art {
+@mixin ascii-art($align) {
+    text-align: $align;
     border: none;
     padding: 0;
+}
+
+.ascii-art-center {
+    @include ascii-art($align: left);
+    display: flex;
+    justify-content: center;
+}
+
+.ascii-art-left {
+    @include ascii-art($align: left);
+}
+
+.ascii-art-right {
+    @include ascii-art($align: right);
+}
+
+.post-tag {
+    color: #f0a3c0;
 }

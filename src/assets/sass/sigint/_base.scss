@@ -115,9 +115,9 @@ a {
   color: $link-base-color;
   text-decoration: none;
 
-  &:visited {
+  /*&:visited {
     color: $link-visited-color;
-  }
+  }*/
 
   &:hover {
     color: $link-hover-color;
