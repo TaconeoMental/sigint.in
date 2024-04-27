@@ -26,6 +26,9 @@ module Jekyll
       def normalize_lengths(text)
         # Normalize line lengths to maintain picture's shape when right aligned
         lines = text.lines.map(&:chomp).map(&:rstrip)
+        if lines[0].empty?
+          lines = lines.drop(1)
+        end
         max_length = lines.map(&:length).max
         padded_lines = lines.map { |line| line.ljust(max_length) }
         padded_lines.join("\n")
