@@ -43,7 +43,7 @@ h1, h2, h3, h4, h5, h6,
 p, blockquote, pre,
 ul, ol, dl, figure,
 %vertical-rhythm {
-  margin-bottom: $spacing-unit * .5;
+  margin-bottom: $spacing-unit * .8;
 }
 
 hr {
@@ -64,6 +64,7 @@ main {
  * Images
  */
 img {
+  border: 1px solid rgba(247, 149, 185, 0.19);
   max-width: 100%;
   vertical-align: middle;
 }

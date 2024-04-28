@@ -6,6 +6,13 @@
     margin-right: auto;
 }
 
+.imgcenter + em {
+    display: block;
+    text-align: center;
+    font-style: italic;
+    font-size: $small-font-size;
+}
+
 @mixin ascii-art($align) {
     text-align: $align;
     border: none;
