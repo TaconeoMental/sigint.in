@@ -4,48 +4,16 @@ title: "La Santísima Trinidad Parte 1 - Inseguro por negligencia"
 tags: rant opinion
 ---
 
-{% comment %}
-## .::0xFF::Disclaimer::.
-
-Aquellos que me conocen personalmente están al tanto del lento y doloroso
-proceso por el que he pasado los últimos meses armando un homelab. Omitiendo la
-capa de hardware, este se basa casi completamente en contenedores, Docker
-particularmente. Estas personas también deben estar al tanto de que soy ese
-personaje insufrible que mete Docker en cualquier conversación y lo usa en
-cualquier proyecto nuevo que tenga.
-{% asciiart center %}
-.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.
-(  '.  _  .'      Antes de continuar, ¿sabías que sigint.in usa dos contenedores para             )
-( -=  (~)  =-     funcionar? Uno como servidor web y otro como helper para la generación del      )
-(  .'  #  '.      contenido estático. Tomen ahí su buena trivia para compartir en familia.        )
-'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-{% endasciiart %}
-Mi punto viene siendo que me gusta mucho esta tecnología, y antes me molestaba
-un poco cuando otras personas la usaban mal (en el sentido de buenas prácticas
-de seguridad) o enseñaban -de forma incorrecta- cómo usarla, sin saber con
-certeza lo qué estaba pasando por detrás.
-
-Esto lo empecé a extrapolar a casi todas las cosas Puede que estas cosas le
-parezcan insignificantes en la práctica a algunos, y entiendo completamente si
-ese es el caso, pero por mi lado, soy seco para ceder ante ese bichito purista
-en mi cabeza y quejarme de la gente que no usa HTTPS en sus redes internas o usa
-os.system() en sus scripts estrictamente personales.  Dicho eso, mantengan sus
-brazos dentro del vehículo en todo momento y tengan en mente que:
-- Yo me quejo por todo
-- Mi modelo de amenaza personal considera todos los escenarios posibles en un determinado momento.
-- Yo me quejo por todo
-{% endcomment %}
-
 ## .::0xFF::Contexto::.
 
-Llevo harto tiempo queriendo escribir sobre este tema, porque me lo sigo topando
-una y otra vez en mi vida diaria (y porque soy medio obsesivo). En foros, videos
-y en mil otros lugares más me he encontrado con gente que -por algún motivo u otro-
-difunde malas prácticas de seguridad, la mayoría de las veces sin estar
-consciente de ello. Mi ejemplo favorito de este fenómeno es la cantidad
-preocupante de usuarios en Stack Overflow que recomiendan correr `chmod 777` para
-resolver cualquier problema de permisos que alguien tenga, independiente del
-contexto de la pregunta original.
+Llevo harto tiempo queriendo escribir sobre este tema, porque me lo sigo
+topando una y otra vez en mi vida diaria (y porque soy medio obsesivo). En
+foros, videos y en mil otros lugares más me he encontrado con gente que -por
+algún motivo u otro- difunde malas prácticas de seguridad, sin ser conscientes
+de ello la mayoría de las veces. Mi ejemplo favorito de este fenómeno es la
+cantidad preocupante de usuarios en Stack Overflow que recomiendan correr
+`chmod 777` para resolver cualquier problema de permisos que alguien tenga,
+independiente del contexto de la pregunta original.
 
 ![caddy-security](/assets/images/2024-trinidad-p1-so1.png){:class="imgcenter" width="60%"}
 
@@ -53,19 +21,20 @@ contexto de la pregunta original.
 
 ![caddy-security](/assets/images/2024-trinidad-p1-so3.png){:class="imgcenter" width="60%"}
 
-**[*] TIP: No hagan eso!!1! :)**
+**[*] TIP: No hagan eso!!1! :)** En sistemas *nix, 777 indica permisos de
+lectura, escritura y ejecución para cualquiera, aka. porfa no, gracias.
 
 A estos comportamientos los llamo _"muletillas"_ y pueden parecer
 insignificantes en la mayoría de los casos. Si bien esto es verdad casi siempre,
 yo soy medio purista (extremista) para mis cosas y son estos detalles los que me
 sacan de quicio realmente.
 
-Dada esta distribución masiva de contenido inseguro (NSFW literalmente jaja) con
-la que me vi enfrentado, decidí plasmar mi opinión en lo que terminó siendo un
-archivo eliminado, porque la verdad es que estaba muy malo. Sin embargo, durante
-este proceso mi crítica dejó de ser solo sobre las _"muletillas"_ y fue mutando
-hasta reducirse en 3 ideas clave, que terminé llamando **La Santísima
-Trinidad**.
+Dada esta distribución masiva de contenido inseguro (NSFW literalmente jaja
+saludos) con la que me vi enfrentado, decidí plasmar mi opinión en lo que
+terminó siendo un archivo eliminado, porque la verdad es que estaba muy malo.
+Sin embargo, durante este proceso mi crítica dejó de ser solo sobre las
+_"muletillas"_ y fue mutando hasta reducirse en 3 ideas clave, que terminé
+llamando **La Santísima Trinidad** porque soy edgy y suena bacán.
 {% asciiart center %}
 .~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.
 (  '.  _  .'      ¿Sabías que elegí el nombre "La Santísima Trinidad"     )
@@ -221,7 +190,7 @@ suficiente para que me parezca relevante hablar del tema.
                 ||     ||
 {% endasciiart %}
 
-Qué trillado igual usar cowsay igual siono, ya chao bye
+Qué trillado igual usar cowsay siono, ya chao bye
 
 ## .::0x4::Referencias::.
 
